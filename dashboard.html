@@ -364,11 +364,18 @@ textarea {
             <div style="display: flex; align-items: center; gap: 18px;">
                 <div class="avatar-frame"><i class="fas fa-user-tie"></i></div>
                 <div>
-                    <h2 style="margin:0; font-weight: 800; letter-spacing: -0.5px;">ARIF RAHMAN</h2>
-                    <div id="userRole" style="font-size:10px; font-weight:bold; letter-spacing: 1px; margin-top: 4px;"></div>
-                </div>
+   <div id="profile" class="content-section active">
+    <div class="header-section">
+        <div style="display: flex; align-items: center; gap: 18px;">
+            <div class="avatar-frame"><i class="fas fa-user-tie"></i></div>
+            <div>
+                <h2 id="userNameDisplay" style="margin:0; font-weight: 800; letter-spacing: -0.5px;">LOADING...</h2>
+                <div id="userRoleDisplay" style="font-size:10px; font-weight:bold; letter-spacing: 1px; margin-top: 4px; color: var(--current-accent);"></div>
             </div>
         </div>
+    </div>
+</div>
+
 
         <div class="mode-selector">
             <div id="custBtn" class="mode-btn active" onclick="setMode('customer')">CUSTOMER</div>
@@ -728,5 +735,59 @@ function handleEnter(e) {
 }
 
     </script>
+<script type="module">
+    // 1. Import library yang dibutuhkan
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+    import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+    // 2. Konfigurasi Firebase Anda
+    const firebaseConfig = {
+        apiKey: "AIzaSyBrluSpKYvgZzz3CjH69SqQp81ydjqI5sI",
+        authDomain: "mechajob-v3.firebaseapp.com",
+        projectId: "mechajob-v3",
+        storageBucket: "mechajob-v3.firebasestorage.app",
+        messagingSenderId: "987474678188",
+        appId: "1:987474678188:web:950ccca56653af0c51aa09"
+    };
+
+    // 3. Inisialisasi
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    // 4. Logika memanggil Nama Profil
+    onAuthStateChanged(auth, async (user) => {
+        if (user) {
+            // Ambil referensi dokumen berdasarkan UID yang sedang login
+            const userDocRef = doc(db, "users", user.uid);
+            
+            try {
+                const docSnap = await getDoc(userDocRef);
+
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    
+                    // Tempel data ke HTML
+                    document.getElementById('userNameDisplay').innerText = data.name.toUpperCase();
+                    document.getElementById('userRoleDisplay').innerText = data.role.toUpperCase() + " • ACTIVE";
+                    
+                    // Opsional: Ubah tema warna jika dia mekanik
+                    if(data.role === 'mechanic') {
+                        document.body.classList.add('mode-mechanic');
+                    }
+                } else {
+                    console.log("Data user tidak ditemukan di Firestore.");
+                    document.getElementById('userNameDisplay').innerText = "USER BARU";
+                }
+            } catch (error) {
+                console.error("Error mengambil data:", error);
+            }
+        } else {
+            // Jika tidak login, arahkan kembali ke index.html
+            window.location.href = "index.html";
+        }
+    });
+</script>
 </body>
 </html>
