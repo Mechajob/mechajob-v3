@@ -1,139 +1,121 @@
-<!DOCTYPE html>
-<html lang="id">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mechajob - Authentikasi</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <style>
-        :root {
-            --mecha-orange: #ff9d00;
-            --mecha-bg: #0a0a0a;
-            --mecha-panel: #1a1a1a;
-            --mecha-border: #333333;
-            --mecha-dim: #a0a0a0;
+<script type="module">
+    // 1. IMPORT FIREBASE
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+    import { getFirestore, doc, getDoc, updateDoc, addDoc, collection, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+    // 2. CONFIG (Pastikan sesuai dengan API Key Anda)
+    const firebaseConfig = {
+        apiKey: "AIzaSyBrluSpKYvgZzz3CjH69SqQp81ydjqI5sI",
+        authDomain: "mechajob-v3.firebaseapp.com",
+        projectId: "mechajob-v3",
+        storageBucket: "mechajob-v3.firebasestorage.app",
+        messagingSenderId: "987474678188",
+        appId: "1:987474678188:web:950ccca56653af0c51aa09"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    // 3. AUTH OBSERVER (Cek siapa yang login)
+    onAuthStateChanged(auth, async (user) => {
+        if (user) {
+            const userSnap = await getDoc(doc(db, "users", user.uid));
+            if (userSnap.exists()) {
+                const userData = userSnap.data();
+                // Update Nama di UI secara dinamis
+                document.querySelector(".header-section h2").innerText = userData.name.toUpperCase();
+                
+                // Jalankan mode sesuai data role di database
+                setMode(userData.role); 
+            }
+        } else {
+            window.location.href = "index.html"; // Lempar ke login jika tidak ada session
+        }
+    });
+
+    // 4. FUNGSI SET MODE (DIPERBAIKI)
+    window.setMode = async function(mode) {
+        const user = auth.currentUser;
+        const userRef = doc(db, "users", user.uid);
+        const userSnap = await getDoc(userRef);
+        const userData = userSnap.data();
+
+        // CEK: Jika user 'customer' mencoba klik tombol 'mechanic' tapi belum upgrade di DB
+        if (mode === 'mechanic' && userData.role === 'customer') {
+            const tanya = confirm("Anda terdaftar sebagai Customer. Upgrade jadi Mekanik sekarang?");
+            if (tanya) {
+                await updateDoc(userRef, { role: 'mechanic' });
+                alert("Selamat! Role Anda sekarang adalah MEKANIK.");
+                location.reload();
+            } else {
+                return; // Batalkan perpindahan mode
+            }
         }
 
-        body {
-            margin: 0; background-color: var(--mecha-bg); color: #fff;
-            font-family: 'Segoe UI', sans-serif; display: flex;
-            justify-content: center; align-items: center; height: 100vh; overflow: hidden;
+        // --- Sisanya adalah logic UI yang sudah Anda buat (dikembangkan) ---
+        renderUIElements(mode, userData);
+    };
+
+    function renderUIElements(mode, userData) {
+        const body = document.getElementById('mainBody');
+        const roleLabel = document.getElementById('userRole');
+        const hCont = document.getElementById('home');
+        const aCont = document.getElementById('activity');
+        // ... (Gunakan logic innerHTML Anda yang lama di sini, sesuaikan dengan mode) ...
+        
+        if(mode === 'mechanic') {
+            body.classList.add('mode-mechanic');
+            document.getElementById('mechBtn').classList.add('active');
+            document.getElementById('custBtn').classList.remove('active');
+            roleLabel.innerText = "EXPERT MECHANIC • VERIFIED";
+            // Render menu mekanik...
+        } else {
+            body.classList.remove('mode-mechanic');
+            document.getElementById('custBtn').classList.add('active');
+            document.getElementById('mechBtn').classList.remove('active');
+            roleLabel.innerText = "PREMIUM MEMBER • ELITE";
+            // Render menu customer...
         }
+    }
 
-        .auth-card {
-            width: 85%; max-width: 400px; background: var(--mecha-panel);
-            border: 1px solid var(--mecha-border); border-radius: 20px;
-            padding: 30px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); position: relative;
+    // 5. FUNGSI KIRIM ORDER (HUBUNGKAN KE FORM)
+    window.handleOrder = async function(event) {
+        event.preventDefault();
+        const btn = event.target.querySelector('button');
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> MENCARI...';
+
+        try {
+            await addDoc(collection(db, "orders"), {
+                customerId: auth.currentUser.uid,
+                customerName: document.getElementById('nama').value,
+                phone: document.getElementById('telp').value,
+                vehicle: document.getElementById('type_kendaraan').value,
+                issue: document.getElementById('detail_kerusakan').value,
+                status: "searching",
+                createdAt: serverTimestamp()
+            });
+            alert("Order Berhasil! Mekanik akan segera menghubungi Anda.");
+            switchPage(document.getElementById('navOrder'), 'activity'); // Pindah ke tab aktivitas
+        } catch (e) {
+            alert("Gagal membuat order: " + e.message);
+        } finally {
+            btn.innerText = "CARI MEKANIK";
         }
+    }
 
-        .auth-card::before {
-            content: ''; position: absolute; top: -2px; left: -2px;
-            width: 40px; height: 40px; border-top: 3px solid var(--mecha-orange);
-            border-left: 3px solid var(--mecha-orange); border-radius: 20px 0 0 0;
-        }
+    // 6. LOGOUT
+    window.handleLogout = function() {
+        signOut(auth).then(() => window.location.href = "index.html");
+    }
 
-        .logo-area { text-align: center; margin-bottom: 25px; }
-        .logo-area i { font-size: 45px; color: var(--mecha-orange); filter: drop-shadow(0 0 10px rgba(255, 157, 0, 0.5)); }
-        .logo-area h1 { margin: 10px 0 5px 0; letter-spacing: 3px; font-weight: 900; }
+    // Global Access untuk fungsi yang dipanggil dari HTML atribut (onclick)
+    window.switchPage = function(el, id) {
+        document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+        el.classList.add('active');
+        document.querySelectorAll('.content-section').forEach(s => s.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+    };
 
-        .input-box { margin-bottom: 15px; }
-        .input-box label { display: block; font-size: 10px; color: var(--mecha-dim); text-transform: uppercase; margin-bottom: 5px; letter-spacing: 1px; }
-        .input-box input { width: 100%; background: #000; border: 1px solid var(--mecha-border); color: #fff; padding: 12px; border-radius: 10px; box-sizing: border-box; }
-        .input-box input:focus { border-color: var(--mecha-orange); outline: none; }
-
-        .btn-auth {
-            width: 100%; background: var(--mecha-orange); color: #000; padding: 14px;
-            border: none; border-radius: 10px; font-weight: 900; text-transform: uppercase;
-            cursor: pointer; clip-path: polygon(5% 0, 100% 0, 95% 100%, 0 100%); transition: 0.3s;
-        }
-
-        .switch-text { text-align: center; margin-top: 15px; font-size: 12px; color: var(--mecha-dim); }
-        .switch-text span { color: var(--mecha-orange); font-weight: bold; cursor: pointer; }
-        .fade-in { animation: fadeIn 0.4s ease-in-out; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-    </style>
-</head>
-<body>
-
-    <div class="auth-card">
-        <div class="logo-area">
-            <i class="fas fa-screwdriver-wrench"></i>
-            <h1>MECHAJOB</h1>
-            <p style="color:var(--mecha-dim); font-size: 10px;">MECHANIC ON-DEMAND SYSTEM</p>
-        </div>
-
-        <div id="formContent" class="fade-in"></div>
-        <div class="switch-text" id="switchArea"></div>
-    </div>
-
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-
-        const firebaseConfig = {
-            apiKey: "AIzaSyBrluSpKYvgZzz3CjH69SqQp81ydjqI5sI",
-            authDomain: "mechajob-v3.firebaseapp.com",
-            projectId: "mechajob-v3",
-            storageBucket: "mechajob-v3.firebasestorage.app",
-            messagingSenderId: "987474678188",
-            appId: "1:987474678188:web:950ccca56653af0c51aa09"
-        };
-
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
-
-        const formContent = document.getElementById('formContent');
-        const switchArea = document.getElementById('switchArea');
-
-        window.showLogin = function() {
-            formContent.innerHTML = `
-                <div class="input-box"><label>Email</label><input type="email" id="email" placeholder="email@gmail.com"></div>
-                <div class="input-box"><label>Password</label><input type="password" id="password" placeholder="******"></div>
-                <button class="btn-auth" onclick="handleLogin()">Login System</button>
-            `;
-            switchArea.innerHTML = `Belum punya akun? <span onclick="showRegister()">Daftar</span>`;
-        };
-
-        window.showRegister = function() {
-            formContent.innerHTML = `
-                <div class="input-box"><label>Full Name</label><input type="text" id="fullName" placeholder="Nama Lengkap"></div>
-                <div class="input-box"><label>Email</label><input type="email" id="email" placeholder="email@gmail.com"></div>
-                <div class="input-box"><label>Password</label><input type="password" id="password" placeholder="Min. 6 Karakter"></div>
-                <button class="btn-auth" onclick="handleRegister()">Create Account</button>
-            `;
-            switchArea.innerHTML = `Sudah punya akun? <span onclick="showLogin()">Masuk</span>`;
-        };
-
-        window.handleRegister = async function() {
-            const email = document.getElementById('email').value;
-            const password = document.getElementById('password').value;
-            const fullName = document.getElementById('fullName').value;
-
-            try {
-                const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-                await setDoc(doc(db, "users", userCredential.user.uid), {
-                    uid: userCredential.user.uid,
-                    name: fullName,
-                    email: email,
-                    role: "customer", // DEFAULT ROLE
-                    createdAt: new Date()
-                });
-                window.location.href = "dashboard.html";
-            } catch (e) { alert(e.message); }
-        };
-
-        window.handleLogin = async function() {
-            const email = document.getElementById('email').value;
-            const password = document.getElementById('password').value;
-            try {
-                await signInWithEmailAndPassword(auth, email, password);
-                window.location.href = "dashboard.html";
-            } catch (e) { alert("Login Gagal!"); }
-        };
-
-        showLogin();
-    </script>
-</body>
-</html>
+</script>
